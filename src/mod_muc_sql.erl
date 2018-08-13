@@ -321,51 +321,17 @@ get_online_rooms(ServerHost, Host, _RSM) ->
 rsm_supported() ->
     false.
 
-register_online_user(ServerHost, {U, S, R}, Room, Host) ->
-    NodeS = erlang:atom_to_binary(node(), latin1),
-    case ?SQL_UPSERT(ServerHost, "muc_online_users",
-		     ["!username=%(U)s",
-		      "!server=%(S)s",
-		      "!resource=%(R)s",
-		      "!name=%(Room)s",
-		      "!host=%(Host)s",
-                      "server_host=%(ServerHost)s",
-		      "node=%(NodeS)s"]) of
-	ok ->
-	    ok;
-	Err ->
-	    Err
-    end.
+register_online_user(_, _, _, _) ->
+    {error, not_implemented}.
 
-unregister_online_user(ServerHost, {U, S, R}, Room, Host) ->
-    %% TODO: report errors
-    ejabberd_sql:sql_query(
-      ServerHost,
-      ?SQL("delete from muc_online_users where username=%(U)s and "
-	   "server=%(S)s and resource=%(R)s and name=%(Room)s and "
-	   "host=%(Host)s")).
+unregister_online_user(_, _, _, _) ->
+    {error, not_implemented}.
 
-count_online_rooms_by_user(ServerHost, U, S) ->
-    case ejabberd_sql:sql_query(
-	   ServerHost,
-	   ?SQL("select @(count(*))d from muc_online_users where "
-		"username=%(U)s and server=%(S)s")) of
-	{selected, [{Num}]} ->
-	    Num;
-	_Err ->
-	    0
-    end.
+count_online_rooms_by_user(_, _, _) ->
+    0.
 
-get_online_rooms_by_user(ServerHost, U, S) ->
-    case ejabberd_sql:sql_query(
-	   ServerHost,
-	   ?SQL("select @(name)s, @(host)s from muc_online_users where "
-		"username=%(U)s and server=%(S)s")) of
-	{selected, Rows} ->
-	    Rows;
-	_Err ->
-	    []
-    end.
+get_online_rooms_by_user(_, _, _) ->
+    [].
 
 export(_Server) ->
     [{muc_room,
