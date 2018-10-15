@@ -38,6 +38,7 @@
 	 stop/1,
 	 reload/3,
 	 room_destroyed/4,
+     store_rooms/4,
 	 store_room/4,
 	 store_room/5,
 	 restore_room/3,
@@ -91,6 +92,7 @@
 -callback init(binary(), gen_mod:opts()) -> any().
 -callback import(binary(), binary(), [binary()]) -> ok.
 -callback store_room(binary(), binary(), binary(), list(), list()|undefined) -> {atomic, any()}.
+-callback store_rooms(binary(), binary(), binary(), list(), list()|undefined) -> {atomic, any()}.
 -callback restore_room(binary(), binary(), binary()) -> muc_room_opts() | error.
 -callback forget_room(binary(), binary(), binary()) -> {atomic, any()}.
 -callback can_use_nick(binary(), binary(), jid(), binary()) -> boolean().
@@ -158,6 +160,14 @@ create_room(Host, Name, From, Nick, Opts) ->
     ServerHost = ejabberd_router:host_of_route(Host),
     Proc = gen_mod:get_module_proc(ServerHost, ?MODULE),
     gen_server:call(Proc, {create, Name, Host, From, Nick, Opts}).
+
+store_rooms(ServerHost, Host, Names, Opts) ->
+    store_rooms(ServerHost, Host, Names, Opts, undefined).
+
+store_rooms(ServerHost, Host, Names, Opts, ChangesHints) ->
+    LServer = jid:nameprep(ServerHost),
+    Mod = gen_mod:db_mod(LServer, ?MODULE),
+    Mod:store_rooms(LServer, Host, Names, Opts, ChangesHints).
 
 store_room(ServerHost, Host, Name, Opts) ->
     store_room(ServerHost, Host, Name, Opts, undefined).

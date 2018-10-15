@@ -30,7 +30,7 @@
 -behaviour(mod_muc_room).
 
 %% API
--export([init/2, store_room/5, restore_room/3, forget_room/3,
+-export([init/2, store_room/5, store_rooms/5, restore_room/3, forget_room/3,
 	 can_use_nick/4, get_rooms/2, get_nick/3, set_nick/4,
 	 import/3, export/1]).
 -export([register_online_room/4, unregister_online_room/4, find_online_room/3,
@@ -57,6 +57,34 @@ init(Host, Opts) ->
 	    ok
     end.
 
+store_rooms(LServer, Host, Names, Opts, ChangesHints) ->
+	Transactions = lists:map(fun({Name, Opt}) -> 
+		{Subs, Opts2} = case lists:keytake(subscribers, 1, Opt) of
+			{value, {subscribers, S}, OptN} -> {S, OptN};
+			_ -> {[], Opt}
+		    end,
+			SOpts = misc:term_to_expr(Opts2),
+			F = fun () ->
+				?SQL_UPSERT_T(
+						"muc_room",
+						["!name=%(Name)s",
+							"!host=%(Host)s",
+							"server_host=%(LServer)s",
+							"opts=%(SOpts)s"]),
+						case ChangesHints of
+							Changes when is_list(Changes) ->
+								[change_room(Host, Name, Change) || Change <- Changes];
+							_ ->
+								ejabberd_sql:sql_query_t(
+								?SQL("delete from muc_room_subscribers where "
+									"room=%(Name)s and host=%(Host)s")),
+								[change_room(Host, Name, {add_subscription, JID, Nick, Nodes})
+								|| {JID, Nick, Nodes} <- Subs]
+						end
+			end	
+	end, lists:zip(Names, Opts)),
+	ejabberd_sql:sql_transaction(LServer, Transactions).
+
 store_room(LServer, Host, Name, Opts, ChangesHints) ->
     {Subs, Opts2} = case lists:keytake(subscribers, 1, Opts) of
 			{value, {subscribers, S}, OptN} -> {S, OptN};
@@ -64,6 +92,7 @@ store_room(LServer, Host, Name, Opts, ChangesHints) ->
 		    end,
     SOpts = misc:term_to_expr(Opts2),
     F = fun () ->
+		
 		?SQL_UPSERT_T(
                    "muc_room",
                    ["!name=%(Name)s",
@@ -82,6 +111,8 @@ store_room(LServer, Host, Name, Opts, ChangesHints) ->
                 end
 	end,
     ejabberd_sql:sql_transaction(LServer, F).
+
+
 
 change_room(Host, Room, {add_subscription, JID, Nick, Nodes}) ->
     SJID = jid:encode(JID),
