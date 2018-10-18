@@ -31,7 +31,7 @@
 %% API
 -export([init/2, store_room/5, restore_room/3, forget_room/3,
 	 can_use_nick/4, get_rooms/2, get_nick/3, set_nick/4,
-	 import/3, export/1]).
+	 import/3, export/1, users_that_should_be_in_room/3]).
 -export([register_online_room/4, unregister_online_room/4, find_online_room/3,
 	 get_online_rooms/3, count_online_rooms/2, rsm_supported/0,
 	 register_online_user/4, unregister_online_user/4,
@@ -156,6 +156,7 @@ can_use_nick(LServer, Host, JID, Nick) ->
     end.
 
 get_rooms(LServer, Host) ->
+	erlang:display("GET ROOMS"),
     case catch ejabberd_sql:sql_query(
                  LServer,
                  ?SQL("select @(name)s, @(opts)s from muc_room"
@@ -183,8 +184,9 @@ get_rooms(LServer, Host) ->
 					 _ ->
 					     OptsD
 			    end,
+				OptsD3 = users_that_should_be_in_room(LServer, Room, OptsD2),
 		      #muc_room{name_host = {Room, Host},
-				      opts = mod_muc:opts_to_binary(OptsD2)}
+				      opts = mod_muc:opts_to_binary(OptsD3)}
 	      end, RoomOpts);
 	_Err ->
 		    []
@@ -192,6 +194,36 @@ get_rooms(LServer, Host) ->
 	_Err ->
 	    []
     end.
+
+users_that_should_be_in_room(LServer, Room, OptsD2) ->
+	% I don't like that I have to query here table that ejabberd does not about
+	% but since ejabber tables are not a reliable source of truth I don't feel that bad about this
+	case catch ejabberd_sql:sql_query(LServer,
+			?SQL("select @(user_testcycle_role.user_jid)s from user_testcycle_role"
+			" join testcycles on testcycles.id = user_testcycle_role.testcycle_id"
+			" join chatrooms on chatrooms.testcycle_id = testcycles.id"
+			" where chatrooms.name = %(Room)s")) of % query that will retrive users that should be inside this room
+	{selected, Users} ->
+		[{Key, Affiliations_db}|_] = lists:filter(fun({K,_}) -> K == affiliations end, OptsD2),
+		case length(Users) /= length(Affiliations_db) of
+			true ->
+				% Warning black magic here XD
+				?INFO_MSG("Adding missing users to room ~p",[Room]),
+				User_ids = lists:map(fun({I}) -> {Uuid,_,_} = jid:split(jid:from_string(I)), Uuid  end, Users),
+				Users_affiliation_item = lists:map(fun(U) -> 
+					{{U, list_to_binary("xmpp.utest.com"),list_to_binary("")},{member,list_to_binary("")}} 
+				end, User_ids),
+				
+				Opts_without_affiliations_table = lists:delete({Key, Affiliations_db}, OptsD2),
+				Affiliations_union = sets:to_list(sets:union([sets:from_list(Users_affiliation_item),sets:from_list(Affiliations_db)])),
+				lists:append(Opts_without_affiliations_table, [{Key, Affiliations_union}]);
+			false ->
+				OptsD2
+			end;
+	_Err ->
+		OptsD2
+	end.
+
 
 get_nick(LServer, Host, From) ->
     SJID = jid:encode(jid:tolower(jid:remove_resource(From))),
