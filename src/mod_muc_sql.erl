@@ -157,7 +157,6 @@ can_use_nick(LServer, Host, JID, Nick) ->
     end.
 
 get_rooms(LServer, Host) ->
-	erlang:display("GET ROOMS"),
     case catch ejabberd_sql:sql_query(
                  LServer,
                  ?SQL("select @(name)s, @(opts)s from muc_room"
@@ -216,12 +215,12 @@ users_that_should_be_in_room(LServer, Room, OptsD2) ->
 				end, User_ids),
 				
 				Opts_without_affiliations_table = lists:delete({Key, Affiliations_db}, OptsD2),
-				Affiliations_union = sets:to_list(sets:union([sets:from_list(Users_affiliation_item),sets:from_list(Affiliations_db)])),
-				lists:append(Opts_without_affiliations_table, [{Key, Affiliations_union}]);
+				lists:append(Opts_without_affiliations_table, [{Key, Users_affiliation_item}]);
 			false ->
 				OptsD2
 			end;
 	_Err ->
+		?ERROR_MSG("Faild to fetch room affiliations.", []),
 		OptsD2
 	end.
 
