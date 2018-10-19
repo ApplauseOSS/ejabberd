@@ -208,7 +208,7 @@ users_that_should_be_in_room(LServer, Room, OptsD2) ->
 		case length(Users) /= length(Affiliations_db) of
 			true ->
 				% Warning black magic here XD
-				?INFO_MSG("Adding missing users to room ~p",[Room]),
+				?INFO_MSG("Adding users affiliations to room ~p",[Room]),
 				User_ids = lists:map(fun({I}) -> {Uuid,_,_} = jid:split(jid:from_string(I)), Uuid  end, Users),
 				Users_affiliation_item = lists:map(fun(U) -> 
 					{{U, list_to_binary("xmpp.utest.com"),list_to_binary("")},{member,list_to_binary("")}} 
