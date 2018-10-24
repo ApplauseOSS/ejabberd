@@ -37,7 +37,7 @@
 	 get_user_rooms/2, get_room_occupants/2,
 	 get_room_occupants_number/2, send_direct_invitation/5,
 	 change_room_option/4, get_room_options/2,
-	 set_room_affiliation/4, get_room_affiliations/2, get_room_affiliation/3,
+	 set_room_affiliation/4, set_rooms_affiliations/4, get_room_affiliations/2, get_room_affiliation/3,
 	 web_menu_main/2, web_page_main/2, web_menu_host/3,
 	 subscribe_room/4, unsubscribe_room/2, get_subscribers/2,
 	 web_page_host/3, mod_options/1, get_commands_spec/0]).
@@ -298,6 +298,14 @@ get_commands_spec() ->
 		       args = [{name, binary}, {service, binary},
 			       {jid, binary}, {affiliation, binary}],
 		       result = {res, rescode}},
+	 #ejabberd_commands{name = set_rooms_affiliations, tags = [muc_room],
+				desc = "Change and affiliation for multiple rooms in one transaction",
+				module = ?MODULE, function = set_rooms_affiliations,
+				args_desc = ["Room names", "MUC service", "Users JIDs", "member"],
+				args_example = ["[room1, room2]", "muc.example.com", "[user2@wxample.com]", "member"],
+				args = [{name, binary}, {service, binary},
+				{jid, binary}, {affiliation, binary}],
+				result = {res, rescode}},
      #ejabberd_commands{name = get_room_affiliations, tags = [muc_room],
 			desc = "Get the list of affiliations of a MUC room",
 			module = ?MODULE, function = get_room_affiliations,
@@ -1084,6 +1092,25 @@ set_room_affiliation(Name, Service, JID, AffiliationString) ->
 	error ->
 	    error
     end.
+
+set_rooms_affiliations(Names, Service, JIDS, AffiliationString) ->
+	Affiliation = misc:binary_to_atom(AffiliationString),
+	States =
+	lists:map(fun(Name) -> 
+		case mod_muc:find_online_room(Name, Service) of
+			{ok, Pid} ->
+				StateDatas = lists:map(fun(JID) -> 
+					{ok, StateData}  = p1_fsm:sync_send_all_state_event(Pid, {process_item_change, {jid:decode(JID), affiliation, Affiliation, <<"">>}, undefined}),
+					StateData
+				end, JIDS),
+				lists:last(StateDatas);
+			error -> 
+				error
+		end
+	end, Names),
+	[First| _] = States,
+	Opts = lists:map(fun(S) -> make_opts(S) end, States),
+	mod_muc:store_rooms(First#state.server_host, First#state.host, Names, Opts).
 
 %%%
 %%% MUC Subscription
