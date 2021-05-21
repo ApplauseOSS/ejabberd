@@ -283,10 +283,18 @@ create_node(Host, Node, Type, Owner, Options, Parents) ->
 delete_node(Host, Node) ->
     lists:map(
 	fun(Rec) ->
-	    Nidx = Rec#pubsub_node.id,
-	    catch ejabberd_sql:sql_query_t(
-		    ?SQL("delete from pubsub_node where nodeid=%(Nidx)d")),
-	    Rec
+		Nidx = Rec#pubsub_node.id,
+		catch ejabberd_sql:sql_query_t(
+			?SQL("delete from pubsub_node where nodeid=%(Nidx)d;")),
+		catch ejabberd_sql:sql_query_t(
+			?SQL("delete from pubsub_node_option where nodeid=%(Nidx)d;")),
+		catch ejabberd_sql:sql_query_t(
+			?SQL("delete from pubsub_node_owner where nodeid=%(Nidx)d;")),
+		catch ejabberd_sql:sql_query_t(
+			?SQL("delete from pubsub_state where nodeid=%(Nidx)d;")),
+		catch ejabberd_sql:sql_query_t(
+			?SQL("delete from pubsub_item where nodeid=%(Nidx)d;")),
+		Rec
 	end, get_subnodes_tree(Host, Node)).
 
 %% helpers
